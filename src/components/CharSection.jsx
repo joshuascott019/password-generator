@@ -6,6 +6,8 @@ const CharSection = ({
   state,
   setter,
   toggleAll,
+  requireOne,
+  setRequireOne,
   guaranteedChars,
   setGuaranteedChars,
 }) => {
@@ -39,6 +41,15 @@ const CharSection = ({
             >
               Deselect All
             </button>
+            <label className="flex items-center gap-1 text-xs text-gray-300 ml-auto">
+              <input
+                type="checkbox"
+                checked={requireOne}
+                onChange={(e) => setRequireOne(e.target.checked)}
+                className="w-4 h-4 accent-green-500"
+              />
+              Require 1
+            </label>
           </div>
           <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-13 gap-2">
             {chars.split('').map((char) => (

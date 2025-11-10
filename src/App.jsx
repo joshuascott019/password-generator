@@ -6,13 +6,31 @@ import { Fragment } from 'react';
 import CharSection from './components/CharSection';
 import GuaranteedSection from './components/GuaranteedSection';
 
+// App version (bump this when you update!)
+const APP_VERSION = '2.4.0';
+// What's New content (easy to edit)
+const CHANGELOG = [
+  '✨ Bulk password generation (1-100)',
+  '🔒 "Require 1" per character group',
+  '📋 Copy all passwords in bulk mode',
+  '💾 Full settings persistence',
+  '📏 Improved strength meter',
+  '❤️ For my sweetheart!',
+].join('\n');
+
 function App() {
+  const [showChangelog, setShowChangelog] = useState(false);
   const [passwords, setPasswords] = useState([]);
   const [length, setLength] = useState(12);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [guaranteedChars, setGuaranteedChars] = useState([]);
   const [bulkCount, setBulkCount] = useState(1);
+
+  const [requireUppercase, setRequireUppercase] = useState(true);
+  const [requireLowercase, setRequireLowercase] = useState(true);
+  const [requireNumbers, setRequireNumbers] = useState(true);
+  const [requireSymbols, setRequireSymbols] = useState(true);
 
   // Character pools
   const [uppercase, setUppercase] = useState(
@@ -75,21 +93,52 @@ function App() {
 
     const result = [];
 
+    // Build allowed pools per group
+    const pools = {
+      upper: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').filter((c) => uppercase[c]),
+      lower: 'abcdefghijklmnopqrstuvwxyz'.split('').filter((c) => lowercase[c]),
+      number: '0123456789'.split('').filter((c) => numbers[c]),
+      symbol: '!@#$%^&*()_+-=[]{}|;:,.<>?/'.split('').filter((c) => symbols[c]),
+    };
+
+    // Determine which groups must appear
+    const mustInclude = [];
+    if (requireUppercase && pools.upper.length > 0) mustInclude.push('upper');
+    if (requireLowercase && pools.lower.length > 0) mustInclude.push('lower');
+    if (requireNumbers && pools.number.length > 0) mustInclude.push('number');
+    if (requireSymbols && pools.symbol.length > 0) mustInclude.push('symbol');
+
+    if (mustInclude.length + validGuaranteed.length > length) {
+      setPasswords([]);
+      return;
+    }
+
     for (let n = 0; n < bulkCount; n++) {
       const pwd = new Array(length);
-      const positions = new Set();
+      const used = new Set();
 
-      // place guaranteed chars
+      // 1. Place guaranteed chars
       validGuaranteed.forEach((char) => {
         let pos;
         do {
           pos = Math.floor(Math.random() * length);
-        } while (positions.has(pos));
+        } while (used.has(pos));
         pwd[pos] = char;
-        positions.add(pos);
+        used.add(pos);
       });
 
-      // fill rest
+      // 2. Place one from each required group
+      mustInclude.forEach((group) => {
+        let pos;
+        do {
+          pos = Math.floor(Math.random() * length);
+        } while (used.has(pos));
+        pwd[pos] =
+          pools[group][Math.floor(Math.random() * pools[group].length)];
+        used.add(pos);
+      });
+
+      // 3. Fill rest with any allowed char
       for (let i = 0; i < length; i++) {
         if (pwd[i] === undefined) {
           pwd[i] = allowed[Math.floor(Math.random() * allowed.length)];
@@ -101,7 +150,6 @@ function App() {
 
     setPasswords(result);
   };
-
   useEffect(() => {
     generatePassword();
   }, [
@@ -112,8 +160,11 @@ function App() {
     numbers,
     symbols,
     guaranteedChars,
+    requireUppercase,
+    requireLowercase,
+    requireNumbers,
+    requireSymbols,
   ]);
-
   // ── LOCAL STORAGE ─────────────────────────────────────────────────────
   useEffect(() => {
     const saved = localStorage.getItem('pwdGenConfig');
@@ -144,6 +195,10 @@ function App() {
           )
       );
       setGuaranteedChars(cfg.guaranteedChars ?? []);
+      setRequireUppercase(cfg.requireUppercase ?? true);
+      setRequireLowercase(cfg.requireLowercase ?? true);
+      setRequireNumbers(cfg.requireNumbers ?? true);
+      setRequireSymbols(cfg.requireSymbols ?? true);
     }
   }, []); // run once on mount
 
@@ -157,6 +212,10 @@ function App() {
       numbers,
       symbols,
       guaranteedChars,
+      requireUppercase,
+      requireLowercase,
+      requireNumbers,
+      requireSymbols,
     };
     localStorage.setItem('pwdGenConfig', JSON.stringify(config));
   }, [
@@ -169,12 +228,26 @@ function App() {
     guaranteedChars,
   ]);
 
+  // Check for updates on mount
+  useEffect(() => {
+    const savedVersion = localStorage.getItem('appVersion');
+    if (savedVersion !== APP_VERSION) {
+      setShowChangelog(true);
+      localStorage.setItem('appVersion', APP_VERSION);
+    }
+  }, []);
+
   const copyToClipboard = async (text) => {
     if (!text) return;
     await navigator.clipboard.writeText(text);
     setCopied(text);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  const closeChangelog = () => {
+    setShowChangelog(false);
+  };
+
   // Toggle all in group
   const toggleAll = (group, setter, value) => {
     const keys = Object.keys(group);
@@ -232,7 +305,7 @@ function App() {
     <>
       <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-4 font-sans">
         <h2 className="text-2xl md:text-3xl font-bold mb-6 text-center">
-          Password Generator <span className="text-xs">v2.3</span>
+          Password Generator <span className="text-xs">{APP_VERSION}</span>
         </h2>
 
         <div className="bg-slate-950 shadow-2xl p-6 rounded-lg w-full max-w-md">
@@ -397,6 +470,8 @@ function App() {
                       state={symbols}
                       setter={setSymbols}
                       toggleAll={toggleAll}
+                      requireOne={requireSymbols}
+                      setRequireOne={setRequireSymbols}
                       guaranteedChars={guaranteedChars}
                       setGuaranteedChars={setGuaranteedChars}
                     />
@@ -406,6 +481,8 @@ function App() {
                       state={numbers}
                       setter={setNumbers}
                       toggleAll={toggleAll}
+                      requireOne={requireNumbers}
+                      setRequireOne={setRequireNumbers}
                       guaranteedChars={guaranteedChars}
                       setGuaranteedChars={setGuaranteedChars}
                     />
@@ -415,6 +492,8 @@ function App() {
                       state={uppercase}
                       setter={setUppercase}
                       toggleAll={toggleAll}
+                      requireOne={requireUppercase}
+                      setRequireOne={setRequireUppercase}
                       guaranteedChars={guaranteedChars}
                       setGuaranteedChars={setGuaranteedChars}
                     />
@@ -424,6 +503,8 @@ function App() {
                       state={lowercase}
                       setter={setLowercase}
                       toggleAll={toggleAll}
+                      requireOne={requireLowercase}
+                      setRequireOne={setRequireLowercase}
                       guaranteedChars={guaranteedChars}
                       setGuaranteedChars={setGuaranteedChars}
                     />
@@ -446,6 +527,59 @@ function App() {
                       className="px-5 py-2 bg-gray-700 hover:bg-gray-600 rounded text-white transition"
                     >
                       Close
+                    </button>
+                  </div>
+                </Dialog.Panel>
+              </Transition.Child>
+            </div>
+          </div>
+        </Dialog>
+      </Transition>
+
+      {/* Changelog Modal */}
+      <Transition appear show={showChangelog} as={Fragment}>
+        <Dialog as="div" className="relative z-50" onClose={closeChangelog}>
+          <Transition.Child
+            as={Fragment}
+            enter="ease-out duration-300"
+            enterFrom="opacity-0"
+            enterTo="opacity-100"
+            leave="ease-in duration-200"
+            leaveFrom="opacity-100"
+            leaveTo="opacity-0"
+          >
+            <div className="fixed inset-0 bg-black bg-opacity-50" />
+          </Transition.Child>
+
+          <div className="fixed inset-0 overflow-y-auto">
+            <div className="flex min-h-full items-center justify-center p-4">
+              <Transition.Child
+                as={Fragment}
+                enter="ease-out duration-300"
+                enterFrom="opacity-0 scale-95"
+                enterTo="opacity-100 scale-100"
+                leave="ease-in duration-200"
+                leaveFrom="opacity-100 scale-100"
+                leaveTo="opacity-0 scale-95"
+              >
+                <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-indigo-950 p-6 text-left shadow-xl transition-all">
+                  <Dialog.Title className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                    <span className="text-yellow-400">🎉</span> What's New in v
+                    {APP_VERSION}
+                  </Dialog.Title>
+
+                  <div className="bg-black bg-opacity-30 rounded p-4 mb-4 max-h-64 overflow-y-auto">
+                    <pre className="text-sm text-gray-200 whitespace-pre-wrap font-sans">
+                      {CHANGELOG}
+                    </pre>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <button
+                      onClick={closeChangelog}
+                      className="px-6 py-2 bg-indigo-700 hover:bg-indigo-600 rounded text-white transition"
+                    >
+                      Got it!
                     </button>
                   </div>
                 </Dialog.Panel>
