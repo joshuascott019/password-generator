@@ -1,15 +1,19 @@
+// src/App.jsx
 import { useState, useEffect } from 'react';
 import { Copy, Check, Settings } from 'lucide-react';
 import { Dialog, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
+import CharSection from './components/CharSection';
+import GuaranteedSection from './components/GuaranteedSection';
 
 function App() {
   const [password, setPassword] = useState('');
-  const [length, setLength] = useState(20);
+  const [length, setLength] = useState(12);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [guaranteedChars, setGuaranteedChars] = useState([]);
 
-  // Character pools (individual toggles)
+  // Character pools
   const [uppercase, setUppercase] = useState(
     Object.fromEntries(
       'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map((c) => [c, true])
@@ -55,7 +59,6 @@ function App() {
     return chars;
   };
 
-  // Generate password from allowed chars
   const generatePassword = () => {
     const allowed = getAllowedChars();
     if (!allowed) {
@@ -63,16 +66,38 @@ function App() {
       return;
     }
 
-    let result = '';
-    for (let i = 0; i < length; i++) {
-      result += allowed[Math.floor(Math.random() * allowed.length)];
+    const validGuaranteed = guaranteedChars.filter((c) => allowed.includes(c));
+    if (validGuaranteed.length > length) {
+      setPassword('');
+      return;
     }
-    setPassword(result);
-  };
 
+    // start with an array – much easier than slicing strings
+    const pwd = new Array(length);
+
+    // place guaranteed characters in random distinct positions
+    const positions = new Set();
+    validGuaranteed.forEach((char) => {
+      let pos;
+      do {
+        pos = Math.floor(Math.random() * length);
+      } while (positions.has(pos));
+      pwd[pos] = char;
+      positions.add(pos);
+    });
+
+    // fill the rest with random allowed chars
+    for (let i = 0; i < length; i++) {
+      if (pwd[i] === undefined) {
+        pwd[i] = allowed[Math.floor(Math.random() * allowed.length)];
+      }
+    }
+
+    setPassword(pwd.join(''));
+  };
   useEffect(() => {
     generatePassword();
-  }, [length, uppercase, lowercase, numbers, symbols]);
+  }, [length, uppercase, lowercase, numbers, symbols, guaranteedChars]);
 
   const copyToClipboard = async () => {
     if (!password) return;
@@ -81,20 +106,66 @@ function App() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Toggle all in a group
+  // Toggle all in group
   const toggleAll = (group, setter, value) => {
     const keys = Object.keys(group);
     setter(Object.fromEntries(keys.map((k) => [k, value])));
   };
 
+  // Password strength
+  const calculateStrength = () => {
+    if (!password) return { score: 0, label: '', color: 'bg-gray-600' };
+
+    let score = 0;
+    const len = password.length;
+
+    score += Math.min(len * 4, 40);
+    const hasUpper = /[A-Z]/.test(password);
+    const hasLower = /[a-z]/.test(password);
+    const hasNumber = /\d/.test(password);
+    const hasSymbol = /[!@#$%^&*()_+\-=\[\]{}|;:",.<>?/]/.test(password);
+
+    score += hasUpper ? 15 : 0;
+    score += hasLower ? 15 : 0;
+    score += hasNumber ? 15 : 0;
+    score += hasSymbol ? 20 : 0;
+
+    const charCount = {};
+    password.split('').forEach((c) => (charCount[c] = (charCount[c] || 0) + 1));
+    const repeated = Object.values(charCount).some((count) => count > 1);
+    if (repeated && len < 12) score -= 10;
+
+    score = Math.max(0, Math.min(100, score));
+
+    let label = '',
+      color = '';
+    if (score <= 25) {
+      label = 'Weak';
+      color = 'bg-red-600';
+    } else if (score <= 50) {
+      label = 'Fair';
+      color = 'bg-orange-500';
+    } else if (score <= 75) {
+      label = 'Good';
+      color = 'bg-yellow-500';
+    } else {
+      label = 'Strong';
+      color = 'bg-green-500';
+    }
+
+    return { score, label, color };
+  };
+
+  const strength = calculateStrength();
+
   return (
     <>
-      <div className="min-h-screen bg-indigo-900 text-white flex flex-col items-center justify-center p-4 font-sans">
+      <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-4 font-sans">
         <h2 className="text-2xl md:text-3xl font-bold mb-6 text-center">
-          Password Generator
+          Password Generator <span className="text-xs">v2</span>
         </h2>
 
-        <div className="bg-indigo-950 shadow-2xl p-6 rounded-lg w-full max-w-md">
+        <div className="bg-slate-950 shadow-2xl p-6 rounded-lg w-full max-w-md">
           {/* Result */}
           <div className="bg-black bg-opacity-40 flex items-center justify-between rounded-md p-3 h-14 text-lg tracking-wider relative">
             <span className="break-all pr-12 max-w-full">
@@ -102,7 +173,7 @@ function App() {
             </span>
             <button
               onClick={copyToClipboard}
-              className="absolute right-1 top-1 w-10 h-10 bg-indigo-900 hover:bg-indigo-800 rounded flex items-center justify-center transition-colors"
+              className="absolute right-1 top-1 w-10 h-10 bg-slate-900 hover:bg-slate-800 rounded flex items-center justify-center transition-colors"
             >
               {copied ? (
                 <Check className="w-5 h-5" />
@@ -111,6 +182,22 @@ function App() {
               )}
             </button>
           </div>
+
+          {/* Strength Meter */}
+          {password && (
+            <div className="mt-3">
+              <div className="flex justify-between text-xs mb-1">
+                <span>Strength</span>
+                <span className="font-medium">{strength.label}</span>
+              </div>
+              <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden">
+                <div
+                  className={`h-full ${strength.color} transition-all duration-500 ease-out`}
+                  style={{ width: `${strength.score}%` }}
+                />
+              </div>
+            </div>
+          )}
 
           {/* Length */}
           <div className="mt-6 flex justify-between items-center">
@@ -123,26 +210,33 @@ function App() {
               onChange={(e) =>
                 setLength(Math.min(50, Math.max(4, +e.target.value)))
               }
-              className="w-20 px-2 py-1 text-black rounded text-center"
+              className="w-20 px-2 py-1 text-white bg-slate-800 rounded text-center"
             />
           </div>
-
-          {/* Settings Button */}
-          <button
-            onClick={() => setIsModalOpen(true)}
-            className="mt-4 w-full bg-indigo-800 hover:bg-indigo-700 text-white font-medium py-2 rounded flex items-center justify-center gap-2 transition-colors"
-          >
-            <Settings className="w-5 h-5" />
-            Character Settings
-          </button>
 
           {/* Generate Button */}
           <button
             onClick={generatePassword}
-            className="mt-4 w-full bg-indigo-900 hover:bg-indigo-800 text-white font-medium py-3 rounded transition-colors text-lg"
+            className="mt-4 w-full bg-slate-900 hover:bg-slate-800 text-white font-medium py-3 rounded transition-colors text-lg"
           >
             Generate Password
           </button>
+
+          {/* Settings Button */}
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="mt-4 w-full bg-slate-800 hover:bg-slate-700 text-white font-medium py-2 rounded flex items-center justify-center gap-2 transition-colors"
+          >
+            <Settings className="w-5 h-5" />
+            Settings
+          </button>
+
+          {/* Warning */}
+          {guaranteedChars.length > length && (
+            <p className="mt-2 text-red-400 text-sm text-center">
+              Warning: Too many guaranteed characters for length {length}
+            </p>
+          )}
         </div>
       </div>
 
@@ -176,50 +270,63 @@ function App() {
                 leaveFrom="opacity-100 scale-100"
                 leaveTo="opacity-0 scale-95"
               >
-                <Dialog.Panel className="w-full max-w-2xl transform overflow-hidden rounded-2xl bg-indigo-950 p-6 text-left align-middle shadow-xl transition-all">
+                <Dialog.Panel className="w-full max-w-2xl transform overflow-hidden rounded-2xl bg-slate-950 p-6 text-left align-middle shadow-xl transition-all">
                   <Dialog.Title className="text-2xl font-bold text-white mb-6">
                     Character Settings
                   </Dialog.Title>
 
                   <div className="space-y-6">
-                    {/* Uppercase */}
                     <CharSection
                       title="Uppercase Letters"
                       chars="ABCDEFGHIJKLMNOPQRSTUVWXYZ"
                       state={uppercase}
                       setter={setUppercase}
                       toggleAll={toggleAll}
+                      guaranteedChars={guaranteedChars}
+                      setGuaranteedChars={setGuaranteedChars}
                     />
-
-                    {/* Lowercase */}
                     <CharSection
                       title="Lowercase Letters"
                       chars="abcdefghijklmnopqrstuvwxyz"
                       state={lowercase}
                       setter={setLowercase}
                       toggleAll={toggleAll}
+                      guaranteedChars={guaranteedChars}
+                      setGuaranteedChars={setGuaranteedChars}
                     />
-
-                    {/* Numbers */}
                     <CharSection
                       title="Numbers"
                       chars="0123456789"
                       state={numbers}
                       setter={setNumbers}
                       toggleAll={toggleAll}
+                      guaranteedChars={guaranteedChars}
+                      setGuaranteedChars={setGuaranteedChars}
                     />
-
-                    {/* Symbols */}
                     <CharSection
                       title="Symbols"
                       chars="!@#$%^&*()_+-=[]{}|;:,.<>?/"
                       state={symbols}
                       setter={setSymbols}
                       toggleAll={toggleAll}
+                      guaranteedChars={guaranteedChars}
+                      setGuaranteedChars={setGuaranteedChars}
+                    />
+
+                    <GuaranteedSection
+                      selected={guaranteedChars}
+                      onSelect={(char) => {
+                        setGuaranteedChars((prev) =>
+                          prev.includes(char)
+                            ? prev.filter((c) => c !== char)
+                            : [...prev, char]
+                        );
+                      }}
+                      getAvailableChars={getAllowedChars}
                     />
                   </div>
 
-                  <div className="mt-8 flex justify-end gap-3">
+                  <div className="mt-8 flex justify-end">
                     <button
                       onClick={() => setIsModalOpen(false)}
                       className="px-5 py-2 bg-gray-700 hover:bg-gray-600 rounded text-white transition"
@@ -234,64 +341,6 @@ function App() {
         </Dialog>
       </Transition>
     </>
-  );
-}
-
-// Reusable Character Section Component
-function CharSection({ title, chars, state, setter, toggleAll }) {
-  const [isOpen, setIsOpen] = useState(true);
-  const selectedCount = Object.values(state).filter((v) => v).length;
-
-  return (
-    <div className="border border-indigo-700 rounded-lg p-4">
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex justify-between items-center text-lg font-medium text-white hover:text-indigo-300 transition"
-      >
-        <span>
-          {title} ({selectedCount}/{chars.length} selected)
-        </span>
-        <span>{isOpen ? 'Collapse' : 'Expand'}</span>
-      </button>
-
-      {isOpen && (
-        <div className="mt-4">
-          <div className="flex gap-2 mb-3">
-            <button
-              onClick={() => toggleAll(state, setter, true)}
-              className="text-xs px-3 py-1 bg-indigo-700 hover:bg-indigo-600 rounded text-white"
-            >
-              Select All
-            </button>
-            <button
-              onClick={() => toggleAll(state, setter, false)}
-              className="text-xs px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-white"
-            >
-              Deselect All
-            </button>
-          </div>
-
-          <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-13 gap-2">
-            {chars.split('').map((char) => (
-              <label
-                key={char}
-                className="flex items-center justify-center w-10 h-10 rounded border border-indigo-500 cursor-pointer transition has-[:checked]:bg-indigo-600 has-[:checked]:border-indigo-400"
-              >
-                <input
-                  type="checkbox"
-                  checked={state[char] || false}
-                  onChange={(e) =>
-                    setter({ ...state, [char]: e.target.checked })
-                  }
-                  className="sr-only"
-                />
-                <span className="text-sm font-mono select-none">{char}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
   );
 }
 
