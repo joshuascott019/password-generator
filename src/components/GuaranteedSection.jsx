@@ -8,7 +8,7 @@ const GuaranteedSection = ({ selected, onSelect, getAvailableChars }) => {
     .filter((c) => c.toLowerCase().includes(search.toLowerCase()));
 
   return (
-    <div className="border border-green-600 rounded-lg p-4 mt-6">
+    <div className="border border-slate-600 rounded-lg p-4 mt-6">
       <h3 className="text-lg font-medium text-white mb-2">
         Guarantee Characters
       </h3>
