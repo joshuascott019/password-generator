@@ -286,6 +286,15 @@ function App() {
                       setGuaranteedChars={setGuaranteedChars}
                     />
                     <CharSection
+                      title="Numbers"
+                      chars="0123456789"
+                      state={numbers}
+                      setter={setNumbers}
+                      toggleAll={toggleAll}
+                      guaranteedChars={guaranteedChars}
+                      setGuaranteedChars={setGuaranteedChars}
+                    />
+                    <CharSection
                       title="Uppercase Letters"
                       chars="ABCDEFGHIJKLMNOPQRSTUVWXYZ"
                       state={uppercase}
@@ -303,16 +312,6 @@ function App() {
                       guaranteedChars={guaranteedChars}
                       setGuaranteedChars={setGuaranteedChars}
                     />
-                    <CharSection
-                      title="Numbers"
-                      chars="0123456789"
-                      state={numbers}
-                      setter={setNumbers}
-                      toggleAll={toggleAll}
-                      guaranteedChars={guaranteedChars}
-                      setGuaranteedChars={setGuaranteedChars}
-                    />
-
                     <GuaranteedSection
                       selected={guaranteedChars}
                       onSelect={(char) => {
