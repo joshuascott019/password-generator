@@ -1,5 +1,5 @@
 // src/App.jsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Copy, Check, Settings } from 'lucide-react';
 import { Dialog, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
@@ -7,18 +7,34 @@ import CharSection from './components/CharSection';
 import GuaranteedSection from './components/GuaranteedSection';
 
 // App version (bump this when you update!)
-const APP_VERSION = '2.4.0';
+const APP_VERSION = 'v2.7.0';
 // What's New content (easy to edit)
 const CHANGELOG = [
-  '✨ Bulk password generation (1-100)',
-  '🔒 "Require 1" per character group',
-  '📋 Copy all passwords in bulk mode',
-  '💾 Full settings persistence',
-  '📏 Improved strength meter',
-  '❤️ For my sweetheart!',
+  'Bulk password generation (1–100 passwords)',
+  '"Require 1" per character group — uppercase, lowercase, numbers, symbols',
+  '"Copy All" button — copies every password in a clean column',
+  'Full settings persistence — everything saved in localStorage',
+  'Smart strength meter — color bar + label (Weak → Strong)',
+  'Smooth number input — type "12" without jumping to 4',
+  '"What\'s New?" modal — greets you after every update',
+  'Fine-grained character control — toggle every A–Z, a–z, 0–9, symbol',
+  'Guarantee any character — force $, @, #, etc. in every password',
+  'Search in guaranteed characters — find fast',
+  'Auto-remove from guarantee if deselected',
+  'Warning if too many guaranteed chars for length',
+  'All settings auto-restore on reload',
+  'Mobile-optimized — number pad + touch-friendly',
+  'Tailwind-powered UI — smooth, modern, animated',
+
+  'Released on November 10, 2025 at 08:06 PM -03',
+  'Built with love in Brazil by @Joshua_S019',
+  'For my sweetheart 🥰',
 ].join('\n');
 
 function App() {
+  const lengthInputRef = useRef(null);
+  const bulkInputRef = useRef(null);
+
   const [showChangelog, setShowChangelog] = useState(false);
   const [passwords, setPasswords] = useState([]);
   const [length, setLength] = useState(12);
@@ -165,6 +181,35 @@ function App() {
     requireNumbers,
     requireSymbols,
   ]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const raw = lengthInputRef.current?.value || '';
+      const num = raw === '' ? 4 : Math.min(50, Math.max(4, +raw));
+      if (+raw !== num) {
+        lengthInputRef.current.value = num;
+        setLength(num);
+      } else {
+        setLength(+raw);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [lengthInputRef.current?.value]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const raw = bulkInputRef.current?.value || '';
+      const num = raw === '' ? 1 : Math.min(100, Math.max(1, +raw));
+      if (+raw !== num) {
+        bulkInputRef.current.value = num;
+        setBulkCount(num);
+      } else {
+        setBulkCount(+raw);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [bulkInputRef.current?.value]);
+
   // ── LOCAL STORAGE ─────────────────────────────────────────────────────
   useEffect(() => {
     const saved = localStorage.getItem('pwdGenConfig');
@@ -356,7 +401,6 @@ function App() {
               </ul>
             )}
           </div>
-
           {/* Strength Meter – now uses first password (or hide if bulk) */}
           {passwords.length > 0 && bulkCount === 1 && (
             <div className="mt-3">
@@ -372,36 +416,38 @@ function App() {
               </div>
             </div>
           )}
-
-          {/* Length */}
+          {/* Password Length */}
           <div className="mt-6 flex justify-between items-center">
             <label className="text-sm md:text-base">Password Length</label>
             <input
-              type="number"
-              min="4"
-              max="50"
-              value={length}
-              onChange={(e) =>
-                setLength(Math.min(50, Math.max(4, +e.target.value)))
-              }
-              className="w-20 px-2 py-1 text-white bg-slate-800 rounded text-center"
+              ref={lengthInputRef}
+              type="text"
+              inputMode="numeric"
+              defaultValue={length}
+              onChange={(e) => {
+                const val = e.target.value.replace(/\D/g, '');
+                e.target.value = val; // instantly show what user types
+              }}
+              className="w-20 px-2 py-1 text-white bg-slate-600 rounded text-center font-mono"
+              placeholder="20"
             />
           </div>
           {/* Bulk Count */}
           <div className="mt-4 flex justify-between items-center">
             <label className="text-sm md:text-base">Generate Count</label>
             <input
-              type="number"
-              min="1"
-              max="100"
-              value={bulkCount}
-              onChange={(e) =>
-                setBulkCount(Math.min(100, Math.max(1, +e.target.value)))
-              }
-              className="w-20 px-2 py-1 text-white bg-slate-800 rounded text-center"
+              ref={bulkInputRef}
+              type="text"
+              inputMode="numeric"
+              defaultValue={bulkCount}
+              onChange={(e) => {
+                const val = e.target.value.replace(/\D/g, '');
+                e.target.value = val;
+              }}
+              className="w-20 px-2 py-1 text-white bg-slate-600 rounded text-center font-mono"
+              placeholder="1"
             />
-          </div>
-
+          </div>{' '}
           {/* Generate Button */}
           <button
             onClick={generatePassword}
@@ -409,7 +455,6 @@ function App() {
           >
             Generate Password
           </button>
-
           {/* Settings Button */}
           <button
             onClick={() => setIsModalOpen(true)}
@@ -418,7 +463,6 @@ function App() {
             <Settings className="w-5 h-5" />
             Settings
           </button>
-
           {/* Warning */}
           {guaranteedChars.length > length && (
             <p className="mt-2 text-red-400 text-sm text-center">

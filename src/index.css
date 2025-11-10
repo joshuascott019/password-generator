@@ -1,1 +1,11 @@
 @import 'tailwindcss';
+
+/* Allow smooth typing in number inputs */
+input[type='text']::-webkit-inner-spin-button,
+input[type='text']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type='text'] {
+  -moz-appearance: textfield;
+}
