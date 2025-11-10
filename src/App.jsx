@@ -277,6 +277,15 @@ function App() {
 
                   <div className="space-y-6">
                     <CharSection
+                      title="Symbols"
+                      chars="!@#$%^&*()_+-=[]{}|;:,.<>?/"
+                      state={symbols}
+                      setter={setSymbols}
+                      toggleAll={toggleAll}
+                      guaranteedChars={guaranteedChars}
+                      setGuaranteedChars={setGuaranteedChars}
+                    />
+                    <CharSection
                       title="Uppercase Letters"
                       chars="ABCDEFGHIJKLMNOPQRSTUVWXYZ"
                       state={uppercase}
@@ -299,15 +308,6 @@ function App() {
                       chars="0123456789"
                       state={numbers}
                       setter={setNumbers}
-                      toggleAll={toggleAll}
-                      guaranteedChars={guaranteedChars}
-                      setGuaranteedChars={setGuaranteedChars}
-                    />
-                    <CharSection
-                      title="Symbols"
-                      chars="!@#$%^&*()_+-=[]{}|;:,.<>?/"
-                      state={symbols}
-                      setter={setSymbols}
                       toggleAll={toggleAll}
                       guaranteedChars={guaranteedChars}
                       setGuaranteedChars={setGuaranteedChars}
