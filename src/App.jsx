@@ -7,11 +7,12 @@ import CharSection from './components/CharSection';
 import GuaranteedSection from './components/GuaranteedSection';
 
 function App() {
-  const [password, setPassword] = useState('');
+  const [passwords, setPasswords] = useState([]);
   const [length, setLength] = useState(12);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [guaranteedChars, setGuaranteedChars] = useState([]);
+  const [bulkCount, setBulkCount] = useState(1);
 
   // Character pools
   const [uppercase, setUppercase] = useState(
@@ -62,47 +63,116 @@ function App() {
   const generatePassword = () => {
     const allowed = getAllowedChars();
     if (!allowed) {
-      setPassword('');
+      setPasswords([]);
       return;
     }
 
     const validGuaranteed = guaranteedChars.filter((c) => allowed.includes(c));
     if (validGuaranteed.length > length) {
-      setPassword('');
+      setPasswords([]);
       return;
     }
 
-    // start with an array – much easier than slicing strings
-    const pwd = new Array(length);
+    const result = [];
 
-    // place guaranteed characters in random distinct positions
-    const positions = new Set();
-    validGuaranteed.forEach((char) => {
-      let pos;
-      do {
-        pos = Math.floor(Math.random() * length);
-      } while (positions.has(pos));
-      pwd[pos] = char;
-      positions.add(pos);
-    });
+    for (let n = 0; n < bulkCount; n++) {
+      const pwd = new Array(length);
+      const positions = new Set();
 
-    // fill the rest with random allowed chars
-    for (let i = 0; i < length; i++) {
-      if (pwd[i] === undefined) {
-        pwd[i] = allowed[Math.floor(Math.random() * allowed.length)];
+      // place guaranteed chars
+      validGuaranteed.forEach((char) => {
+        let pos;
+        do {
+          pos = Math.floor(Math.random() * length);
+        } while (positions.has(pos));
+        pwd[pos] = char;
+        positions.add(pos);
+      });
+
+      // fill rest
+      for (let i = 0; i < length; i++) {
+        if (pwd[i] === undefined) {
+          pwd[i] = allowed[Math.floor(Math.random() * allowed.length)];
+        }
       }
+
+      result.push(pwd.join(''));
     }
 
-    setPassword(pwd.join(''));
+    setPasswords(result);
   };
+
   useEffect(() => {
     generatePassword();
-  }, [length, uppercase, lowercase, numbers, symbols, guaranteedChars]);
+  }, [
+    length,
+    bulkCount,
+    uppercase,
+    lowercase,
+    numbers,
+    symbols,
+    guaranteedChars,
+  ]);
 
-  const copyToClipboard = async () => {
-    if (!password) return;
-    await navigator.clipboard.writeText(password);
-    setCopied(true);
+  // ── LOCAL STORAGE ─────────────────────────────────────────────────────
+  useEffect(() => {
+    const saved = localStorage.getItem('pwdGenConfig');
+    if (saved) {
+      const cfg = JSON.parse(saved);
+      setLength(cfg.length ?? 20);
+      setBulkCount(cfg.bulkCount ?? 1);
+      setUppercase(
+        cfg.uppercase ??
+          Object.fromEntries(
+            'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map((c) => [c, true])
+          )
+      );
+      setLowercase(
+        cfg.lowercase ??
+          Object.fromEntries(
+            'abcdefghijklmnopqrstuvwxyz'.split('').map((c) => [c, true])
+          )
+      );
+      setNumbers(
+        cfg.numbers ??
+          Object.fromEntries('0123456789'.split('').map((c) => [c, true]))
+      );
+      setSymbols(
+        cfg.symbols ??
+          Object.fromEntries(
+            '!@#$%^&*()_+-=[]{}|;:,.<>?/'.split('').map((c) => [c, true])
+          )
+      );
+      setGuaranteedChars(cfg.guaranteedChars ?? []);
+    }
+  }, []); // run once on mount
+
+  // Save whenever any setting changes
+  useEffect(() => {
+    const config = {
+      length,
+      bulkCount,
+      uppercase,
+      lowercase,
+      numbers,
+      symbols,
+      guaranteedChars,
+    };
+    localStorage.setItem('pwdGenConfig', JSON.stringify(config));
+  }, [
+    length,
+    bulkCount,
+    uppercase,
+    lowercase,
+    numbers,
+    symbols,
+    guaranteedChars,
+  ]);
+
+  const copyToClipboard = async (text) => {
+    if (!text) return;
+    await navigator.clipboard.writeText(text);
+    setCopied(text);
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -114,16 +184,17 @@ function App() {
 
   // Password strength
   const calculateStrength = () => {
-    if (!password) return { score: 0, label: '', color: 'bg-gray-600' };
+    const pwd = passwords[0] || '';
+    if (!pwd) return { score: 0, label: '', color: 'bg-gray-600' };
 
     let score = 0;
-    const len = password.length;
+    const len = pwd.length;
 
     score += Math.min(len * 4, 40);
-    const hasUpper = /[A-Z]/.test(password);
-    const hasLower = /[a-z]/.test(password);
-    const hasNumber = /\d/.test(password);
-    const hasSymbol = /[!@#$%^&*()_+\-=\[\]{}|;:",.<>?/]/.test(password);
+    const hasUpper = /[A-Z]/.test(pwd);
+    const hasLower = /[a-z]/.test(pwd);
+    const hasNumber = /\d/.test(pwd);
+    const hasSymbol = /[!@#$%^&*()_+\-=\[\]{}|;:",.<>?/]/.test(pwd);
 
     score += hasUpper ? 15 : 0;
     score += hasLower ? 15 : 0;
@@ -131,7 +202,7 @@ function App() {
     score += hasSymbol ? 20 : 0;
 
     const charCount = {};
-    password.split('').forEach((c) => (charCount[c] = (charCount[c] || 0) + 1));
+    pwd.split('').forEach((c) => (charCount[c] = (charCount[c] || 0) + 1));
     const repeated = Object.values(charCount).some((count) => count > 1);
     if (repeated && len < 12) score -= 10;
 
@@ -162,29 +233,41 @@ function App() {
     <>
       <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-4 font-sans">
         <h2 className="text-2xl md:text-3xl font-bold mb-6 text-center">
-          Password Generator <span className="text-xs">v2</span>
+          Password Generator <span className="text-xs">v2.2</span>
         </h2>
 
         <div className="bg-slate-950 shadow-2xl p-6 rounded-lg w-full max-w-md">
-          {/* Result */}
-          <div className="bg-black bg-opacity-40 flex items-center justify-between rounded-md p-3 h-14 text-lg tracking-wider relative">
-            <span className="break-all pr-12 max-w-full">
-              {password || 'Click Generate'}
-            </span>
-            <button
-              onClick={copyToClipboard}
-              className="absolute right-1 top-1 w-10 h-10 bg-slate-900 hover:bg-slate-800 rounded flex items-center justify-center transition-colors"
-            >
-              {copied ? (
-                <Check className="w-5 h-5" />
-              ) : (
-                <Copy className="w-5 h-5" />
-              )}
-            </button>
+          {/* Result List */}
+          <div className="mt-6 bg-black bg-opacity-40 rounded-md p-3 max-h-60 overflow-y-auto">
+            {passwords.length === 0 ? (
+              <p className="text-center text-gray-400">Click Generate</p>
+            ) : (
+              <ul className="space-y-2">
+                {passwords.map((pwd, idx) => (
+                  <li
+                    key={idx}
+                    className="flex items-center justify-between text-sm md:text-base"
+                  >
+                    <span className="break-all pr-2">{pwd}</span>
+                    <button
+                      onClick={() => copyToClipboard(pwd)}
+                      className="w-8 h-8 bg-indigo-900 hover:bg-indigo-800 rounded flex items-center justify-center transition"
+                      title="Copy"
+                    >
+                      {copied === pwd ? (
+                        <Check className="w-4 h-4" />
+                      ) : (
+                        <Copy className="w-4 h-4" />
+                      )}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
-          {/* Strength Meter */}
-          {password && (
+          {/* Strength Meter – now uses first password (or hide if bulk) */}
+          {passwords.length > 0 && bulkCount === 1 && (
             <div className="mt-3">
               <div className="flex justify-between text-xs mb-1">
                 <span>Strength</span>
@@ -209,6 +292,20 @@ function App() {
               value={length}
               onChange={(e) =>
                 setLength(Math.min(50, Math.max(4, +e.target.value)))
+              }
+              className="w-20 px-2 py-1 text-white bg-slate-800 rounded text-center"
+            />
+          </div>
+          {/* Bulk Count */}
+          <div className="mt-4 flex justify-between items-center">
+            <label className="text-sm md:text-base">Generate Count</label>
+            <input
+              type="number"
+              min="1"
+              max="100"
+              value={bulkCount}
+              onChange={(e) =>
+                setBulkCount(Math.min(100, Math.max(1, +e.target.value)))
               }
               className="w-20 px-2 py-1 text-white bg-slate-800 rounded text-center"
             />
