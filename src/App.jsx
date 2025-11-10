@@ -175,7 +175,6 @@ function App() {
     setCopied(text);
     setTimeout(() => setCopied(false), 2000);
   };
-
   // Toggle all in group
   const toggleAll = (group, setter, value) => {
     const keys = Object.keys(group);
@@ -233,10 +232,29 @@ function App() {
     <>
       <div className="min-h-screen bg-slate-900 text-white flex flex-col items-center justify-center p-4 font-sans">
         <h2 className="text-2xl md:text-3xl font-bold mb-6 text-center">
-          Password Generator <span className="text-xs">v2.2</span>
+          Password Generator <span className="text-xs">v2.3</span>
         </h2>
 
         <div className="bg-slate-950 shadow-2xl p-6 rounded-lg w-full max-w-md">
+          {/* Copy All Button – only when bulk > 1 */}
+          {passwords.length > 1 && (
+            <div className="mt-4 flex justify-center">
+              <button
+                onClick={() => copyToClipboard(passwords.join('\n'))}
+                className="px-4 py-2 bg-green-700 hover:bg-green-600 text-white font-medium rounded flex items-center gap-2 transition"
+              >
+                {copied === passwords.join('\n') ? (
+                  <>
+                    <Check className="w-5 h-5" /> Copied!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-5 h-5" /> Copy All
+                  </>
+                )}
+              </button>
+            </div>
+          )}
           {/* Result List */}
           <div className="mt-6 bg-black bg-opacity-40 rounded-md p-3 max-h-60 overflow-y-auto">
             {passwords.length === 0 ? (
